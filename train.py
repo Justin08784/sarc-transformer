@@ -1,8 +1,49 @@
+from datasets import load_dataset
+
+# dataset = load_dataset("CreativeLang/SARC_Sarcasm")
+# dataset.save_to_disk("dataset/princeton-sarc.hf")
+
+# dataset = load_dataset("dataset/princeton-sarc.hf")
+# print(dataset["train"][:10])
+# print([len(d) for d in dataset])
+
+# import ijson
+src = "dataset/princeton-sarc/comments.json"
+# with open(src, mode="r") as f:
+#     for el in ijson.items(f, "item"):    
+#         print(el)
+#         break
+
+
+import json
+with open(src) as f:
+    d = json.load(f)
+
+tags = ["c200dqh", "c2019zy", "c201p2n"]
+vals = [d[t] for t in tags]
+
+# import pandas as pd
+# print(pd.read_csv("dataset/princeton-sarc/test-balanced.csv"))
+
+'''
+princeton data obtained via:
+wget -r -np -nH --cut-dirs=3 -R "index.html*" "https://nlp.cs.princeton.edu/old/SARC/2.0/main/"
+'''
+
+# print(dir(dataset))
+# print("\n\n")
+# print(vars(dataset))
+
+exit()
+
+
+
 import time
 import transformers
 import torch
 import argparse
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoModelForMaskedLM, Seq2SeqTrainingArguments
+from transformers import AutoModelForSeq2SeqLM, DataCollatorForSeq2Seq, Seq2SeqTrainingArguments, Seq2SeqTrainer
 from datasets import load_dataset, load_metric
 import nltk
 import string
@@ -11,7 +52,8 @@ import string
 import nltk
 nltk.download('punkt')
 
-model_name = "google-t5/t5-small"
+# model_name = "google-t5/t5-small"
+model_name = "google-t5/t5-base"
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
 sarc_data = load_dataset("csv", data_files="dataset/sarcasm_v2.zip")
@@ -62,10 +104,9 @@ else:
 
 
 batch_size = 8
-model_name = "t5-small-tuned"
+model_name = "t5-base-tuned"
 model_dir = f"models/{model_name}"
 
-from transformers import AutoModelForSeq2SeqLM, DataCollatorForSeq2Seq, Seq2SeqTrainingArguments, Seq2SeqTrainer
 args = Seq2SeqTrainingArguments(
     model_dir,
     evaluation_strategy="steps",
@@ -79,7 +120,7 @@ args = Seq2SeqTrainingArguments(
     per_device_eval_batch_size=batch_size,
     weight_decay=0.01,
     save_total_limit=3,
-    num_train_epochs=5,
+    num_train_epochs=2,
     predict_with_generate=True,
     # fp16=True,
     load_best_model_at_end=True,
@@ -96,7 +137,7 @@ metric = load_metric("rouge")
 
 def main(FLAGS):
     
-    if model_name in ["google-t5/t5-small", "Falconsai/text_summarization"]:
+    if model_name in ["google-t5/t5-small", "google-t5/t5-base", "Falconsai/text_summarization"]:
         task = "text2text-generation" # https://github.com/huggingface/transformers/issues/27870
     else:
         task = "text-generation"
@@ -150,8 +191,6 @@ def compute_metrics(eval_pred):
                       for pred in decoded_preds]
     decoded_labels = ["\n".join(nltk.sent_tokenize(label.strip())) 
                       for label in decoded_labels]
-    print(decoded_preds)
-    print(decoded_labels)
     
     # Compute ROUGE scores
     result = metric.compute(predictions=decoded_preds, references=decoded_labels,
